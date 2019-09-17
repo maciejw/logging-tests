@@ -48,13 +48,13 @@ namespace Test1
         public bool CallTestService { get; set; } = true;
         public bool LogToConsole { get; set; } = false;
         public bool LogToTestOutput { get; set; } = true;
-
+        public string BaseAddress { get; set; } = "https://localhost:5001";
     }
 
     public class UnitTest1 : IClassFixture<WebApplicationFactory<Api1.Startup>>, IDisposable
     {
         private readonly WebApplicationFactory<Api1.Startup> webApplicationFactory;
-        private readonly WebApplicationFactory<Api1.Startup> rootWwebApplicationFactory;
+        private readonly IDisposable rootWebApplicationFactory;
         private readonly ITestOutputHelper output;
         private readonly TestOptions options;
 
@@ -68,14 +68,14 @@ namespace Test1
 
 
             });
-            rootWwebApplicationFactory = webApplicationFactory;
+            rootWebApplicationFactory = webApplicationFactory;
             this.output = output;
             this.options = options ?? new TestOptions();
         }
 
         public void Dispose()
         {
-            rootWwebApplicationFactory.Dispose();
+            rootWebApplicationFactory.Dispose();
         }
 
         [Fact(DisplayName = "Call test service")]
@@ -89,7 +89,7 @@ namespace Test1
 
             services.Configure<MyHttpClientOptions>(o =>
             {
-                o.BaseAddress = "https://localhost:5001";
+                o.BaseAddress = options.BaseAddress;
             });
 
             services.AddHttpClient<IMyHttpClient, MyHttpClient>().ConfigureHttpMessageHandlerBuilder(builder =>

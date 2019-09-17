@@ -15,60 +15,70 @@ using Serilog.Sinks.SystemConsole.Themes;
 
 namespace Api1
 {
+    public class ConfigureSerilog
+    {
+        private ConcurrentDictionary<string, LogEventLevel> CategoryFilters = new ConcurrentDictionary<string, LogEventLevel>();
+
+        public void ConfigureLogging(LoggerConfiguration loggerConfiguration)
+        {
+            CompactJsonFormatter fileFormatter = new CompactJsonFormatter();
+
+            var auditLogger = new LoggerConfiguration()
+                .Filter.ByIncludingOnly(Matching.FromSource<Audit>())
+                .AuditTo.File(fileFormatter, "audit-logger.json")
+                .CreateLogger();
+
+            var eventLogger = new LoggerConfiguration()
+                .Filter.ByExcluding(CategoriesBelowCertainLevel)
+                .WriteTo.File(fileFormatter, "event-logger.json", shared: true)
+                .CreateLogger();
+
+            loggerConfiguration
+                .MinimumLevel.Verbose()
+                .Enrich.FromLogContext()
+                .AuditTo.Logger(auditLogger)
+                .WriteTo.Logger(eventLogger)
+                .WriteTo.Console(
+                    restrictedToMinimumLevel: LogEventLevel.Information,
+                    outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} <s:{SourceContext}>{NewLine}{Properties:j}{NewLine}{Exception}",
+                    theme: AnsiConsoleTheme.Code
+                )
+                .WriteTo.Seq(serverUrl: "http://localhost:5341",
+                             restrictedToMinimumLevel: LogEventLevel.Verbose,
+                             compact: true);
+
+        }
+        public void ConfigureLoggingServices(IConfiguration configuration, IServiceCollection services)
+        {
+            services.AddSingleton(CategoryFilters);
+
+            services.AddOptions<LoggingSwitches>()
+                .Bind(configuration)
+                .Configure<ConcurrentDictionary<string, LogEventLevel>, IConfiguration, ILogger<LoggingSwitches>>(LoggingSwitches.ConfigureOptions);
+
+        }
+
+        private bool CategoriesBelowCertainLevel(LogEvent logEvent)
+        {
+            return CategoryFilters.Keys.Any(sourceContext =>
+                Matching.FromSource(sourceContext).Invoke(logEvent)
+                && CategoryFilters.TryGetValue(sourceContext, out var level)
+                && logEvent.Level < level);
+        }
+    }
+
     class LoggingHostingStartup : IHostingStartup
     {
         public void Configure(IWebHostBuilder builder)
         {
-            var CategoryFilters = new ConcurrentDictionary<string, LogEventLevel>();
+            var configureSerilog = new ConfigureSerilog();
 
-            void ConfigureLogger(WebHostBuilderContext context, LoggerConfiguration loggerConfiguration)
+            builder.ConfigureServices((context, services) =>
             {
-                var auditLogger = new LoggerConfiguration()
-                    .Filter.ByIncludingOnly(Matching.FromSource<Audit>())
-                    .AuditTo.File(new CompactJsonFormatter(), "audit-logger.json")
-                    .CreateLogger();
-
-                bool CategoriesBelowCertainLevel(LogEvent logEvent) =>
-                        CategoryFilters.Keys.Any(sourceContext =>
-                            Matching.FromSource(sourceContext).Invoke(logEvent)
-                            && CategoryFilters.TryGetValue(sourceContext, out var level)
-                            && logEvent.Level < level);
-
-                var eventLogger = new LoggerConfiguration()
-                    .Filter.ByExcluding(CategoriesBelowCertainLevel)
-                    .WriteTo.File(new CompactJsonFormatter(), "event-logger.json", shared: true)
-                    .CreateLogger();
-
-                loggerConfiguration
-                    .MinimumLevel.Verbose()
-                    .Enrich.FromLogContext()
-                    .AuditTo.Logger(auditLogger)
-                    .WriteTo.Logger(eventLogger)
-                    .WriteTo.Console(
-                        restrictedToMinimumLevel: LogEventLevel.Information,
-                        outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} <s:{SourceContext}>{NewLine}{Properties:j}{NewLine}{Exception}",
-                        theme: AnsiConsoleTheme.Code
-                    )
-                    .WriteTo.Seq(serverUrl: "http://localhost:5341",
-                                 restrictedToMinimumLevel: LogEventLevel.Verbose,
-                                 compact: true);
-
-            }
-
-            void ConfigureServices(WebHostBuilderContext context, IServiceCollection services)
-            {
-                services.AddSingleton(CategoryFilters);
-                
                 services.AddSingleton<IStartupFilter, LoggingStartupFilter>();
-
-                services.AddOptions<LoggingSwitches>()
-                    .Bind(context.Configuration)
-                    .Configure<ConcurrentDictionary<string, LogEventLevel>, IConfiguration, ILogger<LoggingSwitches>>(LoggingSwitches.ConfigureOptions);
-
-            }
-
-            builder.ConfigureServices(ConfigureServices);
-            builder.UseSerilog(ConfigureLogger);
+                configureSerilog.ConfigureLoggingServices(context.Configuration, services);
+            });
+            builder.UseSerilog((_, loggerConfiguration) => configureSerilog.ConfigureLogging(loggerConfiguration));
         }
     }
 }
