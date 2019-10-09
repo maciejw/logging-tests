@@ -1,10 +1,15 @@
 using System;
-using System.ComponentModel;
-using System.Dynamic;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+#if NETCOREAPP2_2
+using HostingEnvironment = Microsoft.AspNetCore.Hosting.IHostingEnvironment;
+#endif
+#if NETCOREAPP3_0
+using HostingEnvironment = Microsoft.AspNetCore.Hosting.IWebHostEnvironment;
+#endif
 
 namespace Api1
 {
@@ -24,12 +29,9 @@ namespace Api1
             services.AddSingleton<DiagnosticListenerObserver>();
         }
 
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env, IServiceProvider serviceProvider)
+        public void Configure(IApplicationBuilder app, HostingEnvironment env, DiagnosticListenerObserver observer)
         {
-
-            var observer = serviceProvider.GetRequiredService<DiagnosticListenerObserver>();
-
-            if (env.IsDevelopment())
+            if (env.IsDevelopment() || env.IsEnvironment("Testing"))
             {
                 observer.Subscribe();
             }
@@ -38,8 +40,27 @@ namespace Api1
             {
                 app.UseDeveloperExceptionPage();
             }
+            app.Use(next =>
+            {
+                return async context =>
+                {
+                    await next(context);
+                };
 
+            });
+#if NETCOREAPP2_2
             app.UseMvc();
+#endif
+#if NETCOREAPP3_0
+
+            app.UseRouting();
+
+            app.UseEndpoints(routing =>
+            {
+                routing.MapControllers();
+            });
+#endif
+
         }
     }
 

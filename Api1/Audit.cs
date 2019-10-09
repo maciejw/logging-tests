@@ -5,5 +5,5 @@
 
 namespace Api1
 {
-    interface Audit { }
+    internal interface Audit { }
 }

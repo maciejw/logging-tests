@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Api1
 {
-    class DiagnosticListenerObserver : IObserver<KeyValuePair<string, object>>, IDisposable
+    public class DiagnosticListenerObserver : IObserver<KeyValuePair<string, object>>, IDisposable
     {
         private readonly DiagnosticListener diagnosticListener;
         private readonly ILogger<DiagnosticListenerObserver> logger;
@@ -20,7 +20,7 @@ namespace Api1
 
         public void Subscribe(params string[] activityPrefixes)
         {
-            var prefixes = new[] { "Microsoft.AspNetCore.Hosting.HttpRequestIn" }.Concat(activityPrefixes);
+            IEnumerable<string> prefixes = new[] { "Microsoft.AspNetCore.Hosting.HttpRequestIn" }.Concat(activityPrefixes);
 
             bool isEnabled(string activity)
             {
@@ -53,7 +53,7 @@ namespace Api1
         public void OnNext(KeyValuePair<string, object> pair)
         {
             string baggage = string.Join(",", Activity.Current.Baggage?.Select(p => $"{p}"));
-            var (key, _) = pair;
+            (string key, object _) = pair;
             logger.LogInformation("Diagnostics {key}: {baggage}", key, baggage);
         }
     }

@@ -1,30 +1,32 @@
-﻿using System.Collections.Concurrent;
-using System.Collections.Generic;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Serilog.Events;
-
-
-[assembly: HostingStartup(typeof(Api1.LoggingHostingStartup))]
+using Microsoft.Extensions.Options;
 
 namespace Api1
 {
-    class LoggingSwitches
+
+    public class LoggingSwitchesConfiguration : IConfigureOptions<LoggerSourceContextLevelOverrides>
     {
-        public static void ConfigureOptions(LoggingSwitches options, ConcurrentDictionary<string, LogEventLevel> switches, IConfiguration configuration, ILogger<LoggingSwitches> logger)
+        private readonly LoggerSourceContextLevelOverrides globalSwitches;
+        private readonly IConfiguration configuration;
+        private readonly ILogger<LoggerSourceContextLevelOverrides> logger;
+
+        public LoggingSwitchesConfiguration(LoggerSourceContextLevelOverrides globalSwitches, IConfiguration configuration, ILogger<LoggerSourceContextLevelOverrides> logger)
         {
-            var dictionary = new Dictionary<string, LogEventLevel>();
-            configuration.GetSection(nameof(LoggingSwitches)).Bind(dictionary);
+            this.globalSwitches = globalSwitches;
+            this.configuration = configuration;
+            this.logger = logger;
+        }
 
-            foreach (var item in dictionary)
-            {
-                switches.AddOrUpdate(item.Key, _ => item.Value, (_, __) => item.Value);
-            }
 
-            logger.LogInformation("Options changed to {@LoggingSwitchOptions}", switches);
+        public void Configure(LoggerSourceContextLevelOverrides options)
+        {
+            configuration.GetSection(nameof(LoggerSourceContextLevelOverrides)).Bind(options, binder => binder.BindNonPublicProperties = true);
 
+            globalSwitches.Update(options);
+
+            logger.LogInformation("Options changed to {@LoggingSwitchOptions}", options);
         }
     }
 }

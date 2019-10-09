@@ -1,19 +1,21 @@
-﻿using Microsoft.AspNetCore.Mvc.Testing;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit.Sdk;
 
 namespace Test1
 {
-    public static class Program {
-
-        public async static Task Main(string[] args)
+    public static class Program
+    {
+        public static async Task Main(string[] args)
         {
-            var test = new UnitTest1(new WebApplicationFactory<Api1.Startup>(), new TestOutputHelper(), new TestOptions
+            UnitTest1 test = new UnitTest1(new WebApplicationFactory<Api1.Startup>(), new TestOutputHelper(), new TestOptions
             {
                 CallTestService = false,
-                LogToConsole = true,
-                LogToTestOutput = false
-            }); ;
+                LogToConsole = false,
+                LogToTestOutput = false,
+                LogToSerilog = true,
+                EnvironmentName = "Development"
+            });
             await test.Fact1();
         }
     }
